@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spotify CD Overlay</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .overlay-container {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    position: relative;
+  }
+
+  /* ── CD Disc ── */
+  .cd-wrapper {
+    width: 160px;
+    height: 160px;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .cd {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    position: relative;
+    animation: spin 3s linear infinite;
+    filter: drop-shadow(0 4px 24px rgba(0,0,0,0.5));
+  }
+
+  .cd.paused {
+    animation-play-state: paused;
+  }
+
+  /* Album art clipped to circle */
+  .cd-art {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  .cd-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Vinyl grooves overlay */
+  .cd-grooves {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle, transparent 28%, rgba(0,0,0,0.06) 29%, transparent 30%),
+      radial-gradient(circle, transparent 38%, rgba(0,0,0,0.05) 39%, transparent 40%),
+      radial-gradient(circle, transparent 48%, rgba(0,0,0,0.04) 49%, transparent 50%),
+      radial-gradient(circle, transparent 58%, rgba(0,0,0,0.04) 59%, transparent 60%),
+      radial-gradient(circle, transparent 68%, rgba(0,0,0,0.03) 69%, transparent 70%),
+      radial-gradient(circle, transparent 78%, rgba(0,0,0,0.03) 79%, transparent 80%),
+      radial-gradient(circle, transparent 88%, rgba(0,0,0,0.03) 89%, transparent 90%);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* Glossy shine effect */
+  .cd-shine {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(
+      135deg,
+      rgba(255,255,255,0.25) 0%,
+      transparent 40%,
+      transparent 60%,
+      rgba(255,255,255,0.08) 100%
+    );
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  /* Outer rim */
+  .cd-rim {
+    position: absolute;
+    top: -3px; left: -3px;
+    width: calc(100% + 6px);
+    height: calc(100% + 6px);
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.15);
+    box-shadow:
+      inset 0 0 6px rgba(0,0,0,0.3),
+      0 0 12px rgba(0,0,0,0.2);
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  /* Center hole */
+  .cd-hole {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #111 60%, #222 100%);
+    border: 2px solid rgba(255,255,255,0.1);
+    box-shadow: inset 0 0 4px rgba(0,0,0,0.8);
+    z-index: 5;
+  }
+
+  /* ── Song Info ── */
+  .song-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 200px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+
+  .song-info.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .song-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+    letter-spacing: -0.02em;
+  }
+
+  .song-artist {
+    font-size: 11px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.7);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+    letter-spacing: 0.02em;
+  }
+
+  /* Spotify badge */
+  .spotify-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    opacity: 0.5;
+  }
+
+  .spotify-badge svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .spotify-badge span {
+    font-size: 9px;
+    font-weight: 500;
+    color: #1DB954;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Setup Screen ── */
+  .setup-screen {
+    position: fixed;
+    inset: 0;
+    background: #0d0d0d;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    z-index: 100;
+    padding: 32px;
+  }
+
+  .setup-screen.hidden { display: none; }
+
+  .setup-screen h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.03em;
+  }
+
+  .setup-screen p {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    max-width: 440px;
+    text-align: center;
+    line-height: 1.7;
+  }
+
+  .setup-screen code {
+    background: rgba(255,255,255,0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #1DB954;
+  }
+
+  .setup-screen input {
+    width: 100%;
+    max-width: 400px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .setup-screen input:focus {
+    border-color: #1DB954;
+  }
+
+  .setup-screen input::placeholder {
+    color: rgba(255,255,255,0.25);
+  }
+
+  .btn-connect {
+    padding: 12px 32px;
+    border-radius: 24px;
+    border: none;
+    background: #1DB954;
+    color: #000;
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: transform 0.15s, background 0.2s;
+  }
+
+  .btn-connect:hover {
+    transform: scale(1.04);
+    background: #1ed760;
+  }
+
+  .setup-steps {
+    text-align: left;
+    max-width: 440px;
+    width: 100%;
+  }
+
+  .setup-steps ol {
+    padding-left: 20px;
+    color: rgba(255,255,255,0.55);
+    font-size: 12px;
+    line-height: 2;
+  }
+
+  .setup-steps a {
+    color: #1DB954;
+    text-decoration: none;
+  }
+
+  .error-msg {
+    color: #e74c3c;
+    font-size: 12px;
+    min-height: 16px;
+  }
+
+  /* Demo mode label */
+  .demo-label {
+    position: fixed;
+    bottom: 8px;
+    right: 8px;
+    font-size: 9px;
+    color: rgba(255,255,255,0.2);
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── SETUP SCREEN ─── -->
+<div class="setup-screen" id="setup">
+  <h1>🎵 Spotify CD Overlay</h1>
+  <p>
+    Connect your Spotify to show a spinning CD with the album art
+    of whatever you're currently playing. Use this as a
+    <strong>Browser Source</strong> in OBS/Streamlabs.
+  </p>
+
+  <div class="setup-steps">
+    <ol>
+      <li>Go to <a href="https://developer.spotify.com/dashboard" target="_blank">Spotify Developer Dashboard</a> and create an app</li>
+      <li>Set the Redirect URI to your GitHub Pages URL, e.g.<br><code>https://yourusername.github.io/spotify-cd-overlay/</code></li>
+      <li>Copy your <strong>Client ID</strong> and paste it below</li>
+      <li>Click <strong>Connect</strong> → log in to Spotify → you'll be redirected back here</li>
+      <li>Once connected, copy the full page URL and use it as a <strong>Browser Source</strong> in OBS</li>
+    </ol>
+  </div>
+
+  <input type="text" id="clientId" placeholder="Paste your Spotify Client ID" />
+  <p style="color:rgba(255,255,255,0.35);font-size:11px;max-width:400px;text-align:center;">
+    Your Redirect URI in the Spotify dashboard must match this page's URL exactly:<br>
+    <code id="currentUrl" style="font-size:10px;word-break:break-all;"></code>
+  </p>
+  <p class="error-msg" id="errorMsg"></p>
+  <button class="btn-connect" id="btnConnect">Connect to Spotify</button>
+  <button class="btn-connect" style="background:rgba(255,255,255,0.1);color:#fff;" id="btnDemo">Try Demo Mode</button>
+</div>
+
+<!-- ─── OVERLAY ─── -->
+<div class="overlay-container" id="overlay" style="display:none;">
+  <div class="cd-wrapper">
+    <div class="cd" id="cd">
+      <div class="cd-art">
+        <img id="albumArt" src="" alt="Album Art" crossorigin="anonymous" />
+      </div>
+      <div class="cd-grooves"></div>
+      <div class="cd-shine"></div>
+      <div class="cd-rim"></div>
+      <div class="cd-hole"></div>
+    </div>
+  </div>
+  <div class="song-info" id="songInfo">
+    <div class="song-title" id="songTitle">—</div>
+    <div class="song-artist" id="songArtist">—</div>
+    <div class="spotify-badge">
+      <svg viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381C8.64 5.801 15.6 6.06 20.04 8.82c.6.301.72 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+      <span>Now Playing</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Config ──
+  const POLL_INTERVAL = 3000;
+  const SCOPES = 'user-read-currently-playing user-read-playback-state';
+
+  let accessToken = null;
+  let refreshToken = null;
+  let clientId = null;
+  let currentTrackId = null;
+  let isDemo = false;
+
+  // ── Elements ──
+  const $ = id => document.getElementById(id);
+  const setupEl    = $('setup');
+  const overlayEl  = $('overlay');
+  const cdEl       = $('cd');
+  const albumArtEl = $('albumArt');
+  const songTitle  = $('songTitle');
+  const songArtist = $('songArtist');
+  const songInfo   = $('songInfo');
+  const errorMsg   = $('errorMsg');
+
+  // Show current URL so users know what redirect URI to set
+  $('currentUrl').textContent = window.location.origin + window.location.pathname;
+
+  // ── PKCE Helpers ──
+  function generateRandomString(length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    const arr = new Uint8Array(length);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, b => chars[b % chars.length]).join('');
+  }
+
+  async function sha256(plain) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(plain);
+    return await crypto.subtle.digest('SHA-256', data);
+  }
+
+  function base64urlencode(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let str = '';
+    bytes.forEach(b => str += String.fromCharCode(b));
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function generateCodeChallenge(verifier) {
+    const hashed = await sha256(verifier);
+    return base64urlencode(hashed);
+  }
+
+  function getRedirectUri() {
+    return window.location.origin + window.location.pathname;
+  }
+
+  // ── Auth Flow (PKCE) ──
+  $('btnConnect').addEventListener('click', async () => {
+    const id = $('clientId').value.trim();
+    if (!id) {
+      errorMsg.textContent = 'Enter your Spotify Client ID.';
+      return;
+    }
+    clientId = id;
+
+    // Generate PKCE verifier + challenge
+    const codeVerifier = generateRandomString(64);
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+    // Store verifier & clientId so we can use them after redirect
+    sessionStorage.setItem('pkce_verifier', codeVerifier);
+    sessionStorage.setItem('spotify_client_id', clientId);
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'code',
+      redirect_uri: getRedirectUri(),
+      scope: SCOPES,
+      code_challenge_method: 'S256',
+      code_challenge: codeChallenge,
+    });
+
+    // Redirect to Spotify auth
+    window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
+  });
+
+  // ── Handle redirect back with auth code ──
+  async function handleAuthCallback() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const error = params.get('error');
+
+    if (error) {
+      errorMsg.textContent = `Auth error: ${error}`;
+      return false;
+    }
+
+    if (!code) return false;
+
+    const codeVerifier = sessionStorage.getItem('pkce_verifier');
+    const storedClientId = sessionStorage.getItem('spotify_client_id');
+
+    if (!codeVerifier || !storedClientId) {
+      errorMsg.textContent = 'Missing PKCE verifier. Try connecting again.';
+      return false;
+    }
+
+    clientId = storedClientId;
+
+    // Exchange code for tokens
+    try {
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: getRedirectUri(),
+          code_verifier: codeVerifier,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.error) {
+        errorMsg.textContent = `Token error: ${data.error_description || data.error}`;
+        return false;
+      }
+
+      accessToken = data.access_token;
+      refreshToken = data.refresh_token || null;
+
+      // Clean up URL (remove ?code=... from address bar)
+      window.history.replaceState({}, document.title, window.location.pathname);
+      sessionStorage.removeItem('pkce_verifier');
+
+      return true;
+    } catch (err) {
+      errorMsg.textContent = `Network error exchanging token: ${err.message}`;
+      return false;
+    }
+  }
+
+  // ── Refresh Token ──
+  async function refreshAccessToken() {
+    if (!refreshToken || !clientId) return false;
+
+    try {
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.error) return false;
+
+      accessToken = data.access_token;
+      if (data.refresh_token) refreshToken = data.refresh_token;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ── Demo Mode ──
+  $('btnDemo').addEventListener('click', () => {
+    isDemo = true;
+    startOverlay();
+    runDemo();
+  });
+
+  const demoTracks = [
+    { title: 'Blinding Lights', artist: 'The Weeknd', art: 'https://picsum.photos/seed/cd1/300/300' },
+    { title: 'Levitating', artist: 'Dua Lipa', art: 'https://picsum.photos/seed/cd2/300/300' },
+    { title: 'Bad Guy', artist: 'Billie Eilish', art: 'https://picsum.photos/seed/cd3/300/300' },
+    { title: 'Bohemian Rhapsody', artist: 'Queen', art: 'https://picsum.photos/seed/cd4/300/300' },
+  ];
+  let demoIdx = 0;
+
+  function runDemo() {
+    setTrack(demoTracks[demoIdx]);
+    setInterval(() => {
+      demoIdx = (demoIdx + 1) % demoTracks.length;
+      setTrack(demoTracks[demoIdx]);
+    }, 8000);
+  }
+
+  // ── Start Overlay ──
+  function startOverlay() {
+    setupEl.classList.add('hidden');
+    overlayEl.style.display = 'flex';
+    if (!isDemo) pollSpotify();
+  }
+
+  // ── Spotify Polling ──
+  async function pollSpotify() {
+    await fetchNowPlaying();
+    setInterval(fetchNowPlaying, POLL_INTERVAL);
+  }
+
+  async function fetchNowPlaying() {
+    try {
+      const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+
+      if (res.status === 204 || res.status === 202) {
+        cdEl.classList.add('paused');
+        songInfo.classList.remove('visible');
+        return;
+      }
+
+      if (res.status === 401) {
+        // Try refreshing
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          return fetchNowPlaying(); // retry
+        }
+        errorMsg.textContent = 'Token expired. Please reconnect.';
+        setupEl.classList.remove('hidden');
+        overlayEl.style.display = 'none';
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!data.is_playing) {
+        cdEl.classList.add('paused');
+        return;
+      }
+
+      cdEl.classList.remove('paused');
+
+      const track = data.item;
+      if (track && track.id !== currentTrackId) {
+        currentTrackId = track.id;
+        setTrack({
+          title: track.name,
+          artist: track.artists.map(a => a.name).join(', '),
+          art: track.album.images[0]?.url || ''
+        });
+      }
+    } catch (err) {
+      console.error('Spotify fetch error:', err);
+    }
+  }
+
+  // ── Update Display ──
+  function setTrack({ title, artist, art }) {
+    songInfo.classList.remove('visible');
+    setTimeout(() => {
+      albumArtEl.src = art;
+      songTitle.textContent = title;
+      songArtist.textContent = artist;
+      songInfo.classList.add('visible');
+    }, 200);
+  }
+
+  // ── Init: check if returning from Spotify auth ──
+  (async function init() {
+    const authed = await handleAuthCallback();
+    if (authed) {
+      startOverlay();
+    }
+  })();
+</script>
+</body>
+</html>
