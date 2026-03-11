@@ -508,8 +508,9 @@
       accessToken = data.access_token;
       refreshToken = data.refresh_token || null;
 
-      // Clean up URL (remove ?code=... from address bar)
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Put refresh token + client ID in the URL hash so OBS can use it
+      const obsHash = `#rt=${encodeURIComponent(refreshToken)}&cid=${encodeURIComponent(clientId)}`;
+      window.history.replaceState({}, document.title, window.location.pathname + obsHash);
       sessionStorage.removeItem('pkce_verifier');
 
       return true;
@@ -640,10 +641,38 @@
     }, 200);
   }
 
-  // ── Init: check if returning from Spotify auth ──
+  // ── Init: check hash for OBS tokens, or handle auth redirect ──
   (async function init() {
+    // Check if URL hash has refresh token (OBS Browser Source mode)
+    const hash = window.location.hash;
+    if (hash.includes('rt=') && hash.includes('cid=')) {
+      const hashParams = new URLSearchParams(hash.substring(1));
+      refreshToken = decodeURIComponent(hashParams.get('rt'));
+      clientId = decodeURIComponent(hashParams.get('cid'));
+
+      // Use refresh token to get a fresh access token
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        startOverlay();
+        return;
+      }
+    }
+
+    // Check if returning from Spotify auth redirect
     const authed = await handleAuthCallback();
     if (authed) {
+      // Show the OBS URL for the user to copy
+      const obsUrl = window.location.href;
+      const obsNotice = document.createElement('div');
+      obsNotice.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(29,185,84,0.15);border:1px solid #1DB954;border-radius:10px;padding:16px 24px;z-index:200;max-width:500px;text-align:center;font-family:Outfit,sans-serif;';
+      obsNotice.innerHTML = `
+        <div style="color:#1DB954;font-size:13px;font-weight:700;margin-bottom:8px;">Connected! Copy this URL for OBS:</div>
+        <input id="obsUrlBox" readonly style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.4);color:#fff;font-size:11px;font-family:monospace;" value="${obsUrl}" />
+        <button onclick="document.getElementById('obsUrlBox').select();document.execCommand('copy');this.textContent='Copied!'" style="margin-top:8px;padding:6px 16px;border-radius:16px;border:none;background:#1DB954;color:#000;font-family:Outfit,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Copy URL</button>
+        <div style="color:rgba(255,255,255,0.4);font-size:10px;margin-top:8px;">Paste this as a Browser Source URL in OBS. It will auto-connect.</div>
+      `;
+      document.body.appendChild(obsNotice);
+
       startOverlay();
     }
   })();
