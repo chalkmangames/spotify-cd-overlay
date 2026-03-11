@@ -550,6 +550,7 @@
   // ── Demo Mode ──
   $('btnDemo').addEventListener('click', () => {
     isDemo = true;
+    setupEl.classList.add('hidden');
     startOverlay();
     runDemo();
   });
@@ -572,7 +573,6 @@
 
   // ── Start Overlay ──
   function startOverlay() {
-    setupEl.classList.add('hidden');
     overlayEl.style.display = 'flex';
     if (!isDemo) pollSpotify();
   }
@@ -653,6 +653,7 @@
       // Use refresh token to get a fresh access token
       const refreshed = await refreshAccessToken();
       if (refreshed) {
+        setupEl.classList.add('hidden');
         startOverlay();
         return;
       }
@@ -661,17 +662,17 @@
     // Check if returning from Spotify auth redirect
     const authed = await handleAuthCallback();
     if (authed) {
-      // Show the OBS URL for the user to copy
-      const obsUrl = window.location.href;
-      const obsNotice = document.createElement('div');
-      obsNotice.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(29,185,84,0.15);border:1px solid #1DB954;border-radius:10px;padding:16px 24px;z-index:200;max-width:500px;text-align:center;font-family:Outfit,sans-serif;';
-      obsNotice.innerHTML = `
-        <div style="color:#1DB954;font-size:13px;font-weight:700;margin-bottom:8px;">Connected! Copy this URL for OBS:</div>
-        <input id="obsUrlBox" readonly style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.4);color:#fff;font-size:11px;font-family:monospace;" value="${obsUrl}" />
-        <button onclick="document.getElementById('obsUrlBox').select();document.execCommand('copy');this.textContent='Copied!'" style="margin-top:8px;padding:6px 16px;border-radius:16px;border:none;background:#1DB954;color:#000;font-family:Outfit,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Copy URL</button>
-        <div style="color:rgba(255,255,255,0.4);font-size:10px;margin-top:8px;">Paste this as a Browser Source URL in OBS. It will auto-connect.</div>
+      // Build the OBS URL with refresh token in hash
+      const obsUrl = window.location.origin + window.location.pathname + window.location.hash;
+
+      // Replace setup screen content with OBS URL instructions
+      setupEl.innerHTML = `
+        <h1 style="color:#1DB954;">✅ Connected to Spotify!</h1>
+        <p>Copy the URL below and paste it as a <strong>Browser Source</strong> in OBS.</p>
+        <input id="obsUrlBox" readonly style="width:100%;max-width:500px;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;font-family:monospace;font-size:11px;word-break:break-all;" value="${obsUrl}" />
+        <button onclick="document.getElementById('obsUrlBox').select();document.execCommand('copy');this.textContent='Copied!';this.style.background='#17a34a'" style="padding:12px 32px;border-radius:24px;border:none;background:#1DB954;color:#000;font-family:Outfit,sans-serif;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:0.02em;">Copy OBS URL</button>
+        <p style="font-size:11px;color:rgba(255,255,255,0.35);max-width:440px;">This URL contains your refresh token so OBS can auto-connect without logging in. The CD overlay is also running below — scroll down or resize to see it.</p>
       `;
-      document.body.appendChild(obsNotice);
 
       startOverlay();
     }
